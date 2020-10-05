@@ -23,13 +23,12 @@ import java.time.Duration
 import java.util.concurrent.TimeoutException
 
 import scala.collection.JavaConverters._
-
 import org.apache.kafka.clients.CommonClientConfigs
-import org.apache.kafka.clients.consumer.{ConsumerConfig, ConsumerRecord, KafkaConsumer, OffsetOutOfRangeException}
+import org.apache.kafka.clients.consumer.{Consumer, ConsumerConfig, ConsumerRecord, KafkaConsumer, OffsetOutOfRangeException}
 import org.apache.kafka.common.TopicPartition
-
 import org.apache.spark.{SparkEnv, TaskContext}
 import org.apache.spark.internal.Logging
+import org.apache.spark.kafka.KafkaClientUtil
 import org.apache.spark.kafka010.{KafkaConfigUpdater, KafkaTokenUtil}
 import org.apache.spark.sql.kafka010.KafkaSourceProvider._
 import org.apache.spark.sql.kafka010.consumer.KafkaDataConsumer.{AvailableOffsetRange, UNKNOWN_OFFSET}
@@ -116,11 +115,17 @@ private[kafka010] class InternalKafkaConsumer(
   }
 
   /** Create a KafkaConsumer to fetch records for `topicPartition` */
-  private def createConsumer(): KafkaConsumer[Array[Byte], Array[Byte]] = {
-    kafkaParamsWithSecurity = KafkaConfigUpdater("executor", kafkaParams.asScala.toMap)
-      .setAuthenticationConfigIfNeeded(clusterConfig)
-      .build()
-    val c = new KafkaConsumer[Array[Byte], Array[Byte]](kafkaParamsWithSecurity)
+  private def createConsumer(): Consumer[Array[Byte], Array[Byte]] = {
+    var c : Consumer[Array[Byte], Array[Byte]] = null
+    if (kafkaParams.containsKey(KafkaClientUtil.CONSUMER_SUPPLIER_PARAM)) {
+      c = KafkaClientUtil.fromConsumerSupplierParam(kafkaParams.get(
+        KafkaClientUtil.CONSUMER_SUPPLIER_PARAM).asInstanceOf[String]).call()
+    } else {
+      kafkaParamsWithSecurity = KafkaConfigUpdater("executor", kafkaParams.asScala.toMap)
+        .setAuthenticationConfigIfNeeded(clusterConfig)
+        .build()
+      c = new KafkaConsumer[Array[Byte], Array[Byte]](kafkaParamsWithSecurity)
+    }
     val tps = new ju.ArrayList[TopicPartition]()
     tps.add(topicPartition)
     c.assign(tps)

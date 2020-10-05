@@ -19,15 +19,15 @@ package org.apache.spark.sql.kafka010.producer
 
 import java.{util => ju}
 import java.util.concurrent.{ScheduledExecutorService, ScheduledFuture, TimeUnit}
+
 import javax.annotation.concurrent.GuardedBy
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable
-
-import org.apache.kafka.clients.producer.KafkaProducer
-
+import org.apache.kafka.clients.producer.{KafkaProducer, Producer}
 import org.apache.spark.{SparkConf, SparkEnv}
 import org.apache.spark.internal.Logging
+import org.apache.spark.kafka.KafkaClientUtil
 import org.apache.spark.kafka010.{KafkaConfigUpdater, KafkaRedactionUtil}
 import org.apache.spark.sql.kafka010.{PRODUCER_CACHE_EVICTOR_THREAD_RUN_INTERVAL, PRODUCER_CACHE_TIMEOUT}
 import org.apache.spark.util.{Clock, ShutdownHookManager, SystemClock, ThreadUtils, Utils}
@@ -132,8 +132,15 @@ private[producer] class InternalKafkaProducerPool(
     producers.foreach { _.producer.close() }
   }
 
-  private def createKafkaProducer(paramsSeq: Seq[(String, Object)]): Producer = {
-    val kafkaProducer: Producer = new Producer(paramsSeq.toMap.asJava)
+  private def createKafkaProducer(paramsSeq: Seq[(String, Object)]): ProducerT = {
+    val paramMap = paramsSeq.toMap
+    var kafkaProducer: ProducerT = null
+    if (paramMap.contains(KafkaClientUtil.PRODUCER_SUPPLIER_PARAM)) {
+      kafkaProducer = KafkaClientUtil.fromProducerSupplierParam(paramMap.get(
+        KafkaClientUtil.PRODUCER_SUPPLIER_PARAM).asInstanceOf[String]).call()
+    } else {
+      kafkaProducer = new KafkaProducer[Array[Byte], Array[Byte]](paramMap.asJava)
+    }
     if (log.isDebugEnabled()) {
       val redactedParamsSeq = KafkaRedactionUtil.redactParams(paramsSeq)
       logDebug(s"Created a new instance of KafkaProducer for $redactedParamsSeq.")
@@ -151,7 +158,7 @@ private[kafka010] object InternalKafkaProducerPool extends Logging {
     Option(SparkEnv.get).map(_.conf).getOrElse(new SparkConf()))
 
   private type CacheKey = Seq[(String, Object)]
-  private type Producer = KafkaProducer[Array[Byte], Array[Byte]]
+  private type ProducerT = Producer[Array[Byte], Array[Byte]]
 
   ShutdownHookManager.addShutdownHook { () =>
     try {

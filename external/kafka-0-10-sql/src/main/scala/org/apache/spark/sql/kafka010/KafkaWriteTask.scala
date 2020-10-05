@@ -21,7 +21,7 @@ import java.{util => ju}
 
 import scala.collection.JavaConverters._
 
-import org.apache.kafka.clients.producer.{Callback, KafkaProducer, ProducerRecord, RecordMetadata}
+import org.apache.kafka.clients.producer.{Callback, Producer, ProducerRecord, RecordMetadata}
 import org.apache.kafka.common.header.Header
 import org.apache.kafka.common.header.internals.RecordHeader
 
@@ -89,7 +89,7 @@ private[kafka010] abstract class KafkaRowWriter(
    * assuming the row is in Kafka.
    */
   protected def sendRow(
-      row: InternalRow, producer: KafkaProducer[Array[Byte], Array[Byte]]): Unit = {
+      row: InternalRow, producer: Producer[Array[Byte], Array[Byte]]): Unit = {
     val projectedRow = projection(row)
     val topic = projectedRow.getUTF8String(0)
     val key = projectedRow.getBinary(1)

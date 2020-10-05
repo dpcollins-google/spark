@@ -21,13 +21,13 @@ import java.{util => ju}
 
 import scala.util.control.NonFatal
 
-import org.apache.kafka.clients.producer.KafkaProducer
+import org.apache.kafka.clients.producer.Producer
 
 import org.apache.spark.internal.Logging
 
 private[kafka010] class CachedKafkaProducer(
     val cacheKey: Seq[(String, Object)],
-    val producer: KafkaProducer[Array[Byte], Array[Byte]]) extends Logging {
+    val producer: Producer[Array[Byte], Array[Byte]]) extends Logging {
   val id: String = ju.UUID.randomUUID().toString
 
   private[producer] def close(): Unit = {
